@@ -1,6 +1,5 @@
 package com.petsalud.backendpetsalud.security;
 
-import com.petsalud.backendpetsalud.security.UsuarioDetailsService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.*;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -12,6 +11,7 @@ import org.springframework.security.crypto.bcrypt.*;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.context.annotation.Configuration;
 
 import static org.springframework.security.config.Customizer.withDefaults;
 
@@ -23,22 +23,35 @@ public class SecurityConfig {
     private UsuarioDetailsService usuarioDetailsService;
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http)
+            throws Exception {
+
         http
-                .csrf(csrf -> csrf
-                        .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+            .csrf(csrf -> csrf
+                .csrfTokenRepository(
+                    CookieCsrfTokenRepository.withHttpOnlyFalse()
                 )
-                .authorizeRequests(auth -> auth
-                        .requestMatchers("/api/usuarios/registro", "/api/login").permitAll()
-                        .requestMatchers("/api/admin/**").hasAuthority("ADMIN")
-                        .requestMatchers("/api/veterinario/**").hasAnyAuthority("VETERINARIO", "ADMIN")
-                        .anyRequest().authenticated()
-                )
-                .userDetailsService(usuarioDetailsService)
-                .sessionManagement(session -> session
-                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-                )
-                .httpBasic(withDefaults());
+            )
+            .authorizeHttpRequests(auth -> auth
+                // Registro público
+                .requestMatchers("/api/usuarios/registro").permitAll()
+
+                // Solo administradores
+                .requestMatchers("/api/admin/**").hasAuthority("ADMIN")
+                .requestMatchers("/api/usuarios/**").hasAuthority("ADMIN")
+
+                // Veterinarios y administradores
+                .requestMatchers("/api/veterinario/**")
+                    .hasAnyAuthority("VETERINARIO", "ADMIN")
+
+                // Todo lo demás requiere autenticación
+                .anyRequest().authenticated()
+            )
+            .userDetailsService(usuarioDetailsService)
+            .sessionManagement(session -> session
+                .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+            )
+            .httpBasic(withDefaults());
 
         return http.build();
     }
@@ -48,9 +61,11 @@ public class SecurityConfig {
         return new BCryptPasswordEncoder();
     }
 
-    // Necesario para la autenticación en AuthController
     @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration authenticationConfiguration) throws Exception {
+    public AuthenticationManager authenticationManager(
+            AuthenticationConfiguration authenticationConfiguration)
+            throws Exception {
         return authenticationConfiguration.getAuthenticationManager();
     }
 }
+
